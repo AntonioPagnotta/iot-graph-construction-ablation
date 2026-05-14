@@ -1,0 +1,70 @@
+# Robustness of Graph Construction in Context-Aware IoT Anomaly Detection
+
+## 📌 About the Project
+This repository contains our research project based on the paper *Context-Aware Anomaly Detection by Community Detection in the Internet of Things*. 
+
+The original paper proposes a robust framework utilizing dynamic multi-edge graph construction, community detection, and Heterogeneous Graph Neural Networks (HeteroGNN) for edge-level anomaly detection. Our project specifically investigates a critical component of this pipeline: **graph construction**.
+
+Rather than modifying the underlying neural network architecture, we focus on whether the final performance of the anomaly detection framework strongly depends on how the IoT traffic is represented as a multi-relational graph.
+
+### Research Question
+*How much does each edge type contribute to anomaly detection performance?*
+
+### Proposed Analysis
+We perform an ablation study on the edge types utilized in the original framework:
+
+| Configuration | Edge Types Included |
+| :---: | :--- |
+| **A** | Network only |
+| **B** | Network + Context |
+| **C** | Network + Knowledge |
+| **D** | Network + Context + Knowledge |
+
+Our objective is to evaluate how these different graph representations affect key performance metrics: **Accuracy, Precision, Recall, and F1-score**.
+
+---
+
+## 📂 Repository Structure
+
+The repository contains several Jupyter Notebooks, datasets, and generated graph folders. Here is an overview of the main components:
+
+### Core Notebooks
+* `data_processing.ipynb`: Initial data ingestion, cleaning, and preprocessing of the raw network and context data.
+* `GAE for 3edge.ipynb`: Implementation of the Graph Autoencoder (GAE) tailored for the 3-edge graph structure.
+* `train for 3edge.ipynb`: Notebook dedicated to training the anomaly detection model using the generated graphs.
+* `test for 3edge.ipynb`: Evaluation notebook to test the trained model against the test dataset and compute performance metrics.
+
+### Datasets
+* `train_data.csv` / `test_data.csv`: The base training and testing datasets.
+* `filtered_train_3edge.csv` / `filtered_test_3edge.csv`: Processed datasets filtered specifically for the 3-edge configuration.
+
+### Generated Graph Data (Directories)
+These folders store the generated graph states (including community and heterogeneous graphs) during training and testing phases:
+* `3ed_trai_h_graphs/` & `3ed_tes_h_graphs/`
+* `3ed_trai_h_graphs_commun/` & `3ed_tes_h_graphs_commun/`
+* `3ed_trai_h_graphs_hetero_graphs/` & `3ed_tes_h_graphs_hetero_graphs/`
+
+---
+
+## ⚙️ Getting Started
+
+### Prerequisites
+To run the notebooks, you will need a Python environment with Jupyter installed, along with typical graph machine learning libraries. Recommended stack:
+* Python 3.8+
+* Jupyter Notebook / JupyterLab
+* PyTorch
+* PyTorch Geometric (PyG)
+* Pandas, NumPy, Scikit-Learn
+* NetworkX
+
+### Execution Flow
+To reproduce the experiments, it is recommended to run the notebooks in the following order:
+1.  **Data Preparation:** Run `data_processing.ipynb` to clean and prepare the `.csv` files.
+2.  **Graph Construction & Autoencoding:** Execute `GAE for 3edge.ipynb` to generate the required graph structures and latent embeddings.
+3.  **Model Training:** Run `train for 3edge.ipynb` to train the context-aware model on the generated graphs.
+4.  **Evaluation:** Finally, run `test for 3edge.ipynb` to evaluate the model's accuracy, precision, recall, and F1-score.
+
+---
+
+## 💡 Motivation
+The original paper reports high performance metrics, but the entire framework rests entirely on how network traffic is transformed into a multi-relational graph. By mapping out this dependency, this project aims to highlight the importance of the graph construction step in achieving true robustness and generalization across highly diverse IoT environments.
