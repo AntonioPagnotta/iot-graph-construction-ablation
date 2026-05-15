@@ -2,3 +2,5 @@
 * text=auto
 CIC-ToN-IoT.csv filter=lfs diff=lfs merge=lfs -text
 CIC-ToN-IoT.csv.zip filter=lfs diff=lfs merge=lfs -text
+test_data.csv filter=lfs diff=lfs merge=lfs -text
+train_data.csv filter=lfs diff=lfs merge=lfs -text
