@@ -4,3 +4,9 @@ CIC-ToN-IoT.csv filter=lfs diff=lfs merge=lfs -text
 CIC-ToN-IoT.csv.zip filter=lfs diff=lfs merge=lfs -text
 test_data.csv filter=lfs diff=lfs merge=lfs -text
 train_data.csv filter=lfs diff=lfs merge=lfs -text
+CONFIG_B/CONFIG_B_filtered_train_3edge.csv filter=lfs diff=lfs merge=lfs -text
+ filter=lfs diff=lfs merge=lfs -text
+CONFIG_C/CONFIG_C_filtered_train_3edge.csv filter=lfs diff=lfs merge=lfs -text
+ filter=lfs diff=lfs merge=lfs -text
+CONFIG_D/CONFIG_D_filtered_train_3edge.csv filter=lfs diff=lfs merge=lfs -text
+ filter=lfs diff=lfs merge=lfs -text
