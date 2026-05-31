@@ -10,3 +10,5 @@ CONFIG_C/CONFIG_C_filtered_train_3edge.csv filter=lfs diff=lfs merge=lfs -text
  filter=lfs diff=lfs merge=lfs -text
 CONFIG_D/CONFIG_D_filtered_train_3edge.csv filter=lfs diff=lfs merge=lfs -text
  filter=lfs diff=lfs merge=lfs -text
+data/ton_iot_20pct.csv filter=lfs diff=lfs merge=lfs -text
+outputs/edge_labels_5ep.csv filter=lfs diff=lfs merge=lfs -text
