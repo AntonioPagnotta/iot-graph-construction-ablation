@@ -6,9 +6,9 @@ from tqdm.auto import tqdm
 # ==========================================
 # CONFIGURAZIONE
 # ==========================================
-FRAMES_DIR = os.path.join('../video_frames', 'frames')
-OUTPUT_VIDEO = os.path.join('../video_frames', 'network_animation.mp4')
-FPS = 5  # Fotogrammi al secondo (modifica questo valore per velocizzare o rallentare il video)
+FRAMES_DIR = os.path.join('video_frames', 'frames')
+OUTPUT_VIDEO = os.path.join('video_frames', 'network_animation.mp4')
+FPS = 3  # Fotogrammi al secondo (modifica questo valore per velocizzare o rallentare il video)
 
 
 def create_video_from_frames():

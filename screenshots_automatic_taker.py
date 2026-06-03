@@ -14,14 +14,14 @@ from tqdm.auto import tqdm
 # ==========================================
 # CONFIGURAZIONE
 # ==========================================
-TARGET_CONFIG = 'CONFIG_D'
-BASE_GRAPHS_DIR = os.path.join('../outputs', 'labeled_graphs')
-POSITIONS_CACHE_DIR = os.path.join('../outputs', 'positions_cache')
-CSV_LABELS_PATH = os.path.join('../outputs', 'edge_labels_5ep.csv')
-TIMESTAMPS_JSON_PATH = os.path.join('../data', 'graph_timestamps.json')
+TARGET_CONFIG = 'CONFIG_A'
+BASE_GRAPHS_DIR = os.path.join('outputs', 'labeled_graphs')
+POSITIONS_CACHE_DIR = os.path.join('outputs', 'positions_cache')
+CSV_LABELS_PATH = os.path.join('outputs', 'edge_labels_5ep.csv')
+TIMESTAMPS_JSON_PATH = os.path.join('data', 'graph_timestamps.json')
 
 # Output directory per i frames
-FRAMES_DIR = os.path.join('../video_frames', 'frames')
+FRAMES_DIR = os.path.join('video_frames', 'frames')
 os.makedirs(FRAMES_DIR, exist_ok=True)
 
 
@@ -82,7 +82,7 @@ elif os.path.exists(cache_path_generic):
     with open(cache_path_generic, 'rb') as f:
         pos = pickle.load(f)
 else:
-    print("ERRORE: Nessuna posizione cache trovata! Avvia prima la dashboard Streamlit per generarle.")
+    print("ERRORE: Nessuna posizione cache trovata! Avvia prima la dashboard Streamlit per generarle." + cache_path_generic)
     exit(1)
 
 sorted_universe = tuple(sorted(list(pos.keys())))
