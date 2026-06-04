@@ -17,7 +17,7 @@ from tqdm.auto import tqdm
 TARGET_CONFIG = 'CONFIG_A'
 BASE_GRAPHS_DIR = os.path.join('outputs', 'labeled_graphs')
 POSITIONS_CACHE_DIR = os.path.join('outputs', 'positions_cache')
-CSV_LABELS_PATH = os.path.join('outputs', 'edge_labels_5ep.csv')
+CSV_LABELS_PATH = os.path.join('outputs', 'output_final.csv')
 TIMESTAMPS_JSON_PATH = os.path.join('data', 'graph_timestamps.json')
 
 # Output directory per i frames
@@ -34,9 +34,8 @@ def take_screenshot(html_path: str, output_path: str):
         browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-setuid-sandbox"])
         page = browser.new_page(viewport={"width": 1920, "height": 1080})
         page.goto(abs_url)
-        # Attendiamo che il canvas sia renderizzato
         page.wait_for_selector("canvas", state="attached")
-        page.wait_for_timeout(3000)  # 3 secondi per permettere all'animazione iniziale di pyvis di assestarsi
+        page.wait_for_timeout(3000)
         page.screenshot(path=output_path)
         browser.close()
 
@@ -71,7 +70,7 @@ if not df_labels.empty:
     config_letter = TARGET_CONFIG.split('_')[-1]
     df_labels_config = df_labels[df_labels['config'] == config_letter]
 
-# Carica Universo Nodi (Semplificato per scorrere solo la config target o tutto, qui usiamo la logica esistente)
+# Carica Universo Nodi
 cache_path_specific = os.path.join(POSITIONS_CACHE_DIR, f"{TARGET_CONFIG}_node_positions.pkl")
 cache_path_generic = os.path.join(POSITIONS_CACHE_DIR, "node_positions.pkl")
 
@@ -113,14 +112,8 @@ for split, selected_file, file_path in tqdm(files_to_process, desc="Generazione 
     # Estrai Timestamp e crea un nome file sicuro
     dict_key = f"{TARGET_CONFIG}/{split}/{selected_file}"
     graph_time = timestamps_dict.get(dict_key, 'N/D')
-
-    # Rimuovi spazi e due punti per il nome del file (es: "2019-04-23_22-00-00.png")
     safe_time_str = graph_time.replace(" ", "_").replace(":", "-")
     png_file_path = os.path.join(FRAMES_DIR, f"{safe_time_str}.png")
-
-    # Se esiste già, puoi decidere di saltarlo (utile se si interrompe a metà)
-    # if os.path.exists(png_file_path):
-    #     continue
 
     # Setup Labels per questo file
     edge_meta = {}
@@ -209,7 +202,7 @@ for split, selected_file, file_path in tqdm(files_to_process, desc="Generazione 
             node_size, font_alpha = 5, inactive_alpha
 
         orig_id = idx_to_node[dense_idx]
-        x, y = pos.get(orig_id, (0, 0))  # Usa le coordinate estratte
+        x, y = pos.get(orig_id, (0, 0))
         net.add_node(
             dense_idx,
             label=str(orig_id),
@@ -239,19 +232,14 @@ for split, selected_file, file_path in tqdm(files_to_process, desc="Generazione 
         else:
             cat = 'Attacco (Non Classificato)' if is_pt_attack else 'Normale'
 
-        # Nessun filtro show_categories qui, VOGLIAMO TUTTI GLI ARCHI ATTIVI
+        # Only draw TP and TN edges — skip everything else
+        if 'TP' not in cat and 'TN' not in cat:
+            continue
+
         if 'TP' in cat:
             color, width, arrows = "rgba(46, 204, 113, 0.9)", 3.5, "to"
-        elif 'FP' in cat:
-            color, width, arrows = "rgba(230, 126, 34, 0.9)", 2.5, "to"
-        elif 'FN' in cat:
-            color, width, arrows = "rgba(155, 89, 182, 0.9)", 3.0, "to"
-        elif 'TN' in cat:
+        else:  # TN
             color, width, arrows = "rgba(52, 152, 219, 0.3)", 0.6, ""
-        elif cat == 'Attacco (Non Classificato)':
-            color, width, arrows = "rgba(232, 67, 147, 0.9)", 3.0, "to"
-        else:
-            color, width, arrows = "rgba(180, 180, 180, 0.3)", 0.6, ""
 
         net.add_edge(src, dst, color=color, width=width, arrows=arrows)
 
@@ -262,17 +250,13 @@ for split, selected_file, file_path in tqdm(files_to_process, desc="Generazione 
     with open(html_tmp, 'r', encoding='utf-8') as f:
         html_content = f.read()
 
-    # MODIFICA QUI: top -> bottom
     overlay_html = f"""
     <div style="position:absolute;bottom:30px;left:30px;z-index:9999;background:rgba(20,20,30,0.85);padding:15px 25px;border-radius:10px;border:1px solid #444;color:#eee;font-family:sans-serif;">
         <h2 style="margin:0;color:#f39c12;font-size:32px;">{graph_time}</h2>
         <div style="margin-top:10px;font-size:16px;">
             <b>Legenda Archi</b><br>
             <span style="color:#2ecc71;">■</span> TP - Attacco Rilevato (Verde)<br>
-            <span style="color:#e67e22;">■</span> FP - Falso Allarme (Arancio)<br>
-            <span style="color:#9b59b6;">■</span> FN - Attacco Mancato (Viola)<br>
-            <span style="color:#3498db;">■</span> TN - Normale Corretto (Azzurro)<br>
-            <span style="color:#e84393;">■</span> Attacco Senza Predizione (Rosa)
+            <span style="color:#3498db;">■</span> TN - Normale Corretto (Azzurro)
         </div>
     </div>
     """

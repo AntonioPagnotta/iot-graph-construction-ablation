@@ -19,9 +19,9 @@ from playwright.sync_api import sync_playwright
 st.set_page_config(layout="wide", page_title="IoT Graph Dashboard")
 st.title("🌐 Analisi Grafi IoT & Ablation Study")
 
-BASE_GRAPHS_DIR = os.path.join('outputs', 'labeled_graphs')
+BASE_GRAPHS_DIR = os.path.join('outputs', 'graphs')
 POSITIONS_CACHE_DIR = os.path.join('outputs', 'positions_cache')
-CSV_LABELS_PATH = os.path.join('outputs', 'edge_labels_5ep.csv')
+CSV_LABELS_PATH = os.path.join('outputs', 'output_final.csv')
 TIMESTAMPS_JSON_PATH = os.path.join('data', 'graph_timestamps.json')
 os.makedirs(POSITIONS_CACHE_DIR, exist_ok=True)
 
@@ -269,13 +269,17 @@ with tab1:
         else:
             df_current = pd.DataFrame()
 
-        # Parse classifications into a dictionary
-        edge_meta = {}
+        # ---------------------------------------------------------------------------
+        # FIX 1: edge_meta keyed by sorted original-ID pairs (consistent throughout)
+        # FIX 2: TP/FP/TN/FN counting now driven purely from edge_meta values (correct)
+        # ---------------------------------------------------------------------------
+        edge_meta = {}   # key: tuple(sorted([orig_u, orig_v])) → {cat, t, p}
         attack_details = []
 
         for _, row in df_current.iterrows():
             try:
                 u, v = int(row['source_node']), int(row['target_node'])
+                # Always key on sorted original IDs
                 k = tuple(sorted([u, v]))
                 t = int(row['true_label'])
 
@@ -297,7 +301,7 @@ with tab1:
 
                 edge_meta[k] = {'cat': cat, 't': t, 'p': p}
 
-                if t == 1 or p == 1:
+                if t == 1 or (p is not None and p == 1):
                     attack_details.append({
                         "Origine": u,
                         "Destinazione": v,
@@ -310,7 +314,6 @@ with tab1:
                 pass
 
         # ------------------- Metrics display -------------------
-        # Fetch timestamp mapped from JSON
         dict_key = f"{selected_config}/{selected_split}/{selected_file}"
         graph_time = timestamps_dict.get(dict_key, 'N/D')
 
@@ -320,7 +323,7 @@ with tab1:
         col1_1.metric("File", selected_file)
         col1_2.metric("Nodi Universo", f"{universe_size:,}")
 
-        # Extract edges
+        # Extract edges from PT file
         edge_index_filtered = np.empty((2, 0), dtype=int)
         attack_edge_index = None
 
@@ -331,8 +334,12 @@ with tab1:
                 remap = np.vectorize(node_to_idx.get)
                 edge_index_filtered = np.stack([remap(ei[0, valid_mask]), remap(ei[1, valid_mask])])
 
+        # ---------------------------------------------------------------------------
+        # FIX 3: pt_attack_set stores sorted ORIGINAL-ID pairs (same space as edge_meta)
+        #         so lookups later are consistent.
+        # ---------------------------------------------------------------------------
         attack_types = [et for et in data.edge_types if 'attack' in et[1].lower()]
-        pt_attack_set = set()
+        pt_attack_set: set[tuple[int, int]] = set()   # sorted original-ID pairs
         if attack_types:
             ei_att = data[attack_types[0]].edge_index.numpy()
             valid_mask_att = np.isin(ei_att[0], sorted_universe) & np.isin(ei_att[1], sorted_universe)
@@ -340,11 +347,14 @@ with tab1:
                 remap = np.vectorize(node_to_idx.get)
                 attack_edge_index = np.stack([remap(ei_att[0, valid_mask_att]), remap(ei_att[1, valid_mask_att])])
                 for i in range(attack_edge_index.shape[1]):
-                    pt_attack_set.add(tuple(sorted([int(attack_edge_index[0, i]), int(attack_edge_index[1, i])])))
+                    # Convert dense indices back to original IDs for the set
+                    orig_s = idx_to_node[int(attack_edge_index[0, i])]
+                    orig_t = idx_to_node[int(attack_edge_index[1, i])]
+                    pt_attack_set.add(tuple(sorted([orig_s, orig_t])))
 
         total_edges = edge_index_filtered.shape[1] + (
             attack_edge_index.shape[1] if attack_edge_index is not None else 0)
-        col1_3.metric("Archi Totali nel PT", f"{total_edges:,}")
+        col1_3.metric("Archi Totali nel grafo orig.", f"{total_edges:,}")
 
         active_nodes: set[int] = set(edge_index_filtered[0].tolist()) | set(edge_index_filtered[1].tolist())
         if attack_edge_index is not None:
@@ -353,16 +363,17 @@ with tab1:
 
         col1_4.metric("Nodi Attivi in questo Slot", f"{len(active_nodes):,}")
 
-        # Sub-Metrics - Calculate all required counts
-        tp_c = len([1 for m in edge_meta.values() if 'TP' in m['cat']])
-        fp_c = len([1 for m in edge_meta.values() if 'FP' in m['cat']])
-        tn_c = len([1 for m in edge_meta.values() if 'TN' in m['cat']])
-        fn_c = len([1 for m in edge_meta.values() if 'FN' in m['cat']])
-        uncl_a = len([1 for m in edge_meta.values() if m['cat'] == 'Attacco (Non Classificato)'])
+        # ---------------------------------------------------------------------------
+        # FIX 4: TP/FP/TN/FN counts — use string membership checks for robustness
+        # ---------------------------------------------------------------------------
+        tp_c  = sum(1 for m in edge_meta.values() if m['cat'] == 'TP (Attacco Rilevato)')
+        fp_c  = sum(1 for m in edge_meta.values() if m['cat'] == 'FP (Falso Allarme)')
+        tn_c  = sum(1 for m in edge_meta.values() if m['cat'] == 'TN (Normale Corretto)')
+        fn_c  = sum(1 for m in edge_meta.values() if m['cat'] == 'FN (Attacco Mancato)')
+        uncl_a = sum(1 for m in edge_meta.values() if m['cat'] == 'Attacco (Non Classificato)')
 
-        # Ground Truth totals
-        att_gen_c = len([1 for m in edge_meta.values() if m['t'] == 1])
-        norm_gen_c = len([1 for m in edge_meta.values() if m['t'] == 0])
+        att_gen_c  = sum(1 for m in edge_meta.values() if m['t'] == 1)
+        norm_gen_c = sum(1 for m in edge_meta.values() if m['t'] == 0)
 
         if not df_current.empty:
             st.info(
@@ -462,7 +473,8 @@ with tab1:
                         x=float(x), y=float(y), size=node_size, fixed=True,
                     )
 
-                all_edges_to_draw = set()
+                # Build a unified set of all edges to draw (dense-index pairs, undirected)
+                all_edges_to_draw: set[tuple[int, int]] = set()
                 for i in range(edge_index_filtered.shape[1]):
                     all_edges_to_draw.add((int(edge_index_filtered[0, i]), int(edge_index_filtered[1, i])))
                 if attack_edge_index is not None:
@@ -474,42 +486,64 @@ with tab1:
                 for src, dst in all_edges_to_draw:
                     orig_src = idx_to_node.get(src, src)
                     orig_dst = idx_to_node.get(dst, dst)
+                    # Lookup key in original-ID space (consistent with edge_meta)
                     k = tuple(sorted([orig_src, orig_dst]))
 
                     meta = edge_meta.get(k)
-                    is_pt_attack = tuple(sorted([src, dst])) in pt_attack_set
+
+                    # ---------------------------------------------------------------------------
+                    # FIX 5: is_pt_attack also uses original-ID space (consistent with pt_attack_set)
+                    # ---------------------------------------------------------------------------
+                    is_pt_attack = k in pt_attack_set
 
                     if meta is not None:
                         cat = meta['cat']
                         t_label = meta['t']
                     else:
+                        # Edge present in PT but not in CSV → infer from pt_attack_set
                         cat = 'Attacco (Non Classificato)' if is_pt_attack else 'Normale (Non Classificato)'
                         t_label = 1 if is_pt_attack else 0
 
-                    # Valutazione override per "Attacchi Generali"
-                    if t_label == 1 and show_general_attacks:
-                        color, width, label, arrows = "rgba(231, 76, 60, 0.9)", 3.5, "Attacco Reale (Generale)", "to"  # Rosso
+                    # ---------------------------------------------------------------------------
+                    # FIX 6: Correct edge-visibility logic.
+                    #
+                    # Priority order:
+                    #   1. If "Attacchi Generali" is selected AND this is a true attack (t=1),
+                    #      always show it in red — regardless of any other category filter.
+                    #   2. Otherwise fall through to the per-category filter.
+                    #
+                    # This replaces the old broken logic where the general-attack branch was
+                    # evaluated unconditionally before the category-filter branch, causing
+                    # benign edges to also render when show_general_attacks was True.
+                    # ---------------------------------------------------------------------------
+                    if show_general_attacks and t_label == 1:
+                        color  = "rgba(231, 76, 60, 0.9)"
+                        width  = 3.5
+                        label  = "Attacco Reale (Generale)"
+                        arrows = "to"
                     else:
-                        # Logica matrice standard
+                        # Only show this edge if its specific category is selected
                         if cat not in show_categories:
                             continue
 
-                        if 'TP' in cat:
-                            color, width, label, arrows = "rgba(46, 204, 113, 0.9)", 3.5, "TP (Attacco Rilevato)", "to"  # Verde
-                        elif 'FP' in cat:
-                            color, width, label, arrows = "rgba(230, 126, 34, 0.9)", 2.5, "FP (Falso Allarme)", "to"  # Arancio
-                        elif 'FN' in cat:
-                            color, width, label, arrows = "rgba(155, 89, 182, 0.9)", 3.0, "FN (Attacco Mancato)", "to"  # Viola
-                        elif 'TN' in cat:
-                            color, width, label, arrows = "rgba(52, 152, 219, 0.3)", 0.6, "TN (Normale Corretto)", ""  # Azzurro
+                        if cat == 'TP (Attacco Rilevato)':
+                            color, width, label, arrows = "rgba(46, 204, 113, 0.9)", 3.5, "TP (Attacco Rilevato)", "to"
+                        elif cat == 'FP (Falso Allarme)':
+                            color, width, label, arrows = "rgba(230, 126, 34, 0.9)", 2.5, "FP (Falso Allarme)", "to"
+                        elif cat == 'FN (Attacco Mancato)':
+                            color, width, label, arrows = "rgba(155, 89, 182, 0.9)", 3.0, "FN (Attacco Mancato)", "to"
+                        elif cat == 'TN (Normale Corretto)':
+                            color, width, label, arrows = "rgba(52, 152, 219, 0.3)", 0.6, "TN (Normale Corretto)", ""
                         elif cat == 'Attacco (Non Classificato)':
-                            color, width, label, arrows = "rgba(232, 67, 147, 0.9)", 3.0, "Attacco (Nessuna Predizione)", "to"  # Rosa scuro / Magenta
+                            color, width, label, arrows = "rgba(232, 67, 147, 0.9)", 3.0, "Attacco (Nessuna Predizione)", "to"
                         else:
-                            color, width, label, arrows = "rgba(180, 180, 180, 0.3)", 0.6, cat, ""  # Grigio
+                            # 'Normale (Non Classificato)'
+                            color, width, label, arrows = "rgba(180, 180, 180, 0.3)", 0.6, cat, ""
 
                     net.add_edge(src, dst, color=color, width=width, title=label, arrows=arrows)
 
-                    if t_label == 1 or 'FP' in cat:
+                    # Track anomalous edges for the "Zoom Anomalia" button
+                    if t_label == 1 or cat == 'FP (Falso Allarme)':
                         attack_pairs_list.append([src, dst])
 
                 attack_pairs_js = json.dumps(attack_pairs_list)
@@ -587,7 +621,6 @@ with tab2:
     else:
         filtered_df = df_metrics[df_metrics['Configuration'].isin(selected_configs)]
 
-        # --- Row 1: Grouped Bar Chart ---
         st.subheader("Performance Metrics Comparison")
         df_melted = filtered_df.melt(id_vars='Configuration', var_name='Metric', value_name='Score')
 
